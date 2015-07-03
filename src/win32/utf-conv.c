@@ -42,10 +42,8 @@ int git__utf8_to_16(wchar_t *dest, size_t dest_size, const char *src)
 {
 	int len;
 
-	/* Length of -1 indicates NULL termination of the input string. Subtract 1 from the result to
-	* turn 0 into -1 (an error code) and to not count the NULL terminator as part of the string's
-	* length. MultiByteToWideChar never returns int's minvalue, so underflow is not possible */
-	if ((len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, src, -1, dest, (int)dest_size) - 1) < 0)
+	size_t stCharConv = 0;
+	if (len = mbstowcs_s(&stCharConv, dest, dest_size, src, _TRUNCATE) < 0)
 		git__set_errno();
 
 	return len;
@@ -63,10 +61,8 @@ int git__utf16_to_8(char *dest, size_t dest_size, const wchar_t *src)
 {
 	int len;
 
-	/* Length of -1 indicates NULL termination of the input string. Subtract 1 from the result to
-	 * turn 0 into -1 (an error code) and to not count the NULL terminator as part of the string's
-	 * length. WideCharToMultiByte never returns int's minvalue, so underflow is not possible */
-	if ((len = WideCharToMultiByte(CP_UTF8, get_wc_flags(), src, -1, dest, (int)dest_size, NULL, NULL) - 1) < 0)
+	size_t stCharConv = 0;
+	if (len = wcstombs_s(&stCharConv, dest, dest_size, src, _TRUNCATE) < 0)
 		git__set_errno();
 
 	return len;
@@ -87,20 +83,23 @@ int git__utf8_to_16_alloc(wchar_t **dest, const char *src)
 
 	*dest = NULL;
 
-	/* Length of -1 indicates NULL termination of the input string */
-	utf16_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, src, -1, NULL, 0);
+	size_t stCharConv = 0;
+	utf16_size = mbstowcs_s(&stCharConv, NULL, -1, src, 0);
 
 	if (!utf16_size) {
 		git__set_errno();
 		return -1;
 	}
+	
+	/* Set the size to the required buffer size */
+	utf16_size = stCharConv;
 
 	if (!(*dest = git__mallocarray(utf16_size, sizeof(wchar_t)))) {
 		errno = ENOMEM;
 		return -1;
 	}
 
-	utf16_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, src, -1, *dest, utf16_size);
+	utf16_size = mbstowcs_s(&stCharConv, *dest, utf16_size, src, _TRUNCATE);
 
 	if (!utf16_size) {
 		git__set_errno();
@@ -131,13 +130,16 @@ int git__utf16_to_8_alloc(char **dest, const wchar_t *src)
 
 	*dest = NULL;
 
-	/* Length of -1 indicates NULL termination of the input string */
-	utf8_size = WideCharToMultiByte(CP_UTF8, dwFlags, src, -1, NULL, 0, NULL, NULL);
+	size_t stCharConv = 0;
+	utf8_size = wcstombs_s(&stCharConv, NULL, -1, src, 0);
 
 	if (!utf8_size) {
 		git__set_errno();
 		return -1;
 	}
+	
+	/* Set the size to the required buffer size */
+	utf8_size = stCharConv;
 
 	*dest = git__malloc(utf8_size);
 
@@ -146,7 +148,7 @@ int git__utf16_to_8_alloc(char **dest, const wchar_t *src)
 		return -1;
 	}
 
-	utf8_size = WideCharToMultiByte(CP_UTF8, dwFlags, src, -1, *dest, utf8_size, NULL, NULL);
+	utf8_size = wcstombs_s(&stCharConv, *dest, utf8_size, src, _TRUNCATE);
 
 	if (!utf8_size) {
 		git__set_errno();
@@ -156,7 +158,7 @@ int git__utf16_to_8_alloc(char **dest, const wchar_t *src)
 	}
 
 	/* Subtract 1 from the result to turn 0 into -1 (an error code) and to not count the NULL
-	 * terminator as part of the string's length. MultiByteToWideChar never returns int's minvalue,
+	 * terminator as part of the string's length. wcstombs_s never returns int's minvalue,
 	 * so underflow is not possible */
 	return utf8_size - 1;
 }
