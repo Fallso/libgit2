@@ -1069,11 +1069,7 @@ static int handle_unmatched_new_item(
 		}
 		
 		/* If the current path doesn't match any item in the pathspec (if present), don't recurse */
-		if (!git_pathspec__match(&diff->pathspec, nitem->path,
-			DIFF_FLAG_IS_SET(diff, GIT_DIFF_DISABLE_PATHSPEC_MATCH),
-			DIFF_FLAG_IS_SET(diff, GIT_DIFF_IGNORE_CASE),
-			NULL, NULL))
-		{
+		if (!git_pathspec__match_partial(&diff->pathspec, nitem->path)) {
 			recurse_into_dir = false;
 		}
 
